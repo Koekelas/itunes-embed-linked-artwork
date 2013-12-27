@@ -1,0 +1,598 @@
+<job>
+<script language="JScript">
+/*jslint plusplus: true*/
+/*global WScript*/
+
+(function () {
+
+    "use strict";
+
+    var metadata = {
+
+            NAME: "Embed Linked Artwork",
+            VERSION: "0.0.1"
+        },
+
+        environment = (function environment() {
+
+            var instance = {},
+
+                isSupported = function isSupported() {
+
+                    return (/CScript/i).test(WScript.FullName);
+                };
+
+            instance.isSupported = isSupported;
+
+            return instance;
+        }()),
+
+        io = (function io() {
+
+            var instance = {},
+
+                echo = function echo(message) {
+
+                    WScript.StdOut.WriteLine(message);
+                },
+
+                read = function read(prompt) {
+
+                    if (prompt !== undefined) {
+
+                        WScript.StdOut.Write(prompt + " ");
+                    }
+
+                    return WScript.StdIn.ReadLine();
+                };
+
+            instance.echo = echo;
+            instance.read = read;
+
+            return instance;
+        }()),
+
+        logger = (function logger() {
+
+            var severities = {
+
+                    ERROR: 0,
+                    INFORMATION: 1,
+                    DEBUG: 2
+                },
+                TAB = "    ",
+                currentSeverity = severities.INFORMATION,
+                currentGroup = 0,
+                intendation,
+                instance = {},
+
+                log = function log(message, severity) {
+
+                    if (severity !== undefined && severity > currentSeverity) {
+
+                        return;
+                    }
+
+                    if (message === undefined) {
+
+                        message = "";
+                    }
+
+                    io.echo(intendation + message);
+                },
+
+                error = function error(message) {
+
+                    log(message, severities.ERROR);
+                },
+
+                information = function information(message) {
+
+                    log(message, severities.INFORMATION);
+                },
+
+                debug = function debug(message) {
+
+                    log(message, severities.DEBUG);
+                },
+
+                rebuildIntendation = function rebuildIntendation() {
+
+                    var numberOfTimesLeft = currentGroup;
+
+                    intendation = "";
+
+                    while (numberOfTimesLeft > 0) {
+
+                        intendation += TAB;
+                        --numberOfTimesLeft;
+                    }
+                },
+
+                group = function group() {
+
+                    ++currentGroup;
+                    rebuildIntendation();
+                },
+
+                ungroup = function ungroup() {
+
+                    if (currentGroup <= 0) {
+
+                        return;
+                    }
+
+                    --currentGroup;
+                    rebuildIntendation();
+                },
+
+                setSeverity = function setSeverity(severity) {
+
+                    currentSeverity = severity;
+                },
+
+                initialise = function initialise() {
+
+                    rebuildIntendation();
+                };
+
+            instance.severities = severities;
+            instance.log = log;
+            instance.error = error;
+            instance.information = information;
+            instance.debug = debug;
+            instance.group = group;
+            instance.ungroup = ungroup;
+            instance.setSeverity = setSeverity;
+            initialise();
+
+            return instance;
+        }()),
+
+        wshList  = function wshList(list) {
+
+            var instance = {},
+
+                each = function each(callback) {
+
+                    var i,
+                        numberOfElements;
+
+                    for (i = 0, numberOfElements = list.length; i < numberOfElements; ++i) {
+
+                        if (callback(list.Item(i)) === false) {
+
+                            break;
+                        }
+                    }
+                },
+
+                fold = function fold(callback, startValue) {
+
+                    var i,
+                        numberOfElements,
+                        accumulator = startValue;
+
+                    for (i = 0, numberOfElements = list.length; i < numberOfElements; ++i) {
+
+                        accumulator = callback(list.Item(i), accumulator);
+                    }
+
+                    return accumulator;
+                },
+
+                map = function map(callback) {
+
+                    var i,
+                        numberOfElements,
+                        result = [];
+
+                    for (i = 0, numberOfElements = list.length; i < numberOfElements; ++i) {
+
+                        result.push(callback(list.Item(i)));
+                    }
+
+                    return result;
+                };
+
+            instance.each = each;
+            instance.fold = fold;
+            instance.map = map;
+
+            return instance;
+        },
+
+        itunesList  = function itunesList(list) {
+
+            var instance = {},
+
+                each = function each(callback) {
+
+                    var i,
+                        numberOfElements;
+
+                    for (i = 1, numberOfElements = list.Count; i <= numberOfElements; ++i) {
+
+                        if (callback(list.Item(i)) === false) {
+
+                            break;
+                        }
+                    }
+                },
+
+                fold = function fold(callback, startValue) {
+
+                    var i,
+                        numberOfElements,
+                        accumulator = startValue;
+
+                    for (i = 1, numberOfElements = list.Count; i <= numberOfElements; ++i) {
+
+                        accumulator = callback(list.Item(i), accumulator);
+                    }
+
+                    return accumulator;
+                },
+
+                map = function map(callback) {
+
+                    var i,
+                        numberOfElements,
+                        result = [];
+
+                    for (i = 1, numberOfElements = list.Count; i <= numberOfElements; ++i) {
+
+                        result.push(callback(list.Item(i)));
+                    }
+
+                    return result;
+                };
+
+            instance.each = each;
+            instance.fold = fold;
+            instance.map = map;
+
+            return instance;
+        },
+
+        app = function app() {
+
+            var itunesTypeLibrary = {
+
+                    minimumCompatibleVersion: { //iTunes 7.0
+
+                        MAJOR: 1,
+                        MINOR: 8
+                    }
+                },
+                fileSystemObject = {
+
+                    specialFolders: {
+
+                        WINDOWS: 0,
+                        SYSTEM: 1,
+                        TEMP: 2
+                    }
+                },
+                PROGRESS_UPDATE_GRANULARITY = 5, //in percent
+
+                displayHelp = function displayHelp() {
+
+                    var scriptName = WScript.ScriptName;
+
+                    //Name
+                    logger.log("NAME");
+                    logger.group();
+                    logger.log(scriptName + " - " + metadata.NAME);
+                    logger.ungroup();
+                    logger.log();
+
+                    //Synopsis
+                    logger.log("SYNOPSIS");
+                    logger.group();
+                    logger.log(scriptName + " [options]");
+                    logger.ungroup();
+                    logger.log();
+
+                    //Description
+                    logger.log("DESCRIPTION");
+                    logger.group();
+                    logger.log("iTunes 7 introduced the ability to download artwork for CDs you ripped");
+                    logger.log("yourself. Unlike the songs you purchase from the iTunes Store, the artwork");
+                    logger.log("is not embedded into the file but instead linked to, preventing other");
+                    logger.log("programs from displaying the artwork. " + metadata.NAME + " solves this");
+                    logger.log("problem by searching your entire library for songs with linked artwork and");
+                    logger.log("embedding the artwork into the file when it finds one.");
+                    logger.log();
+                    logger.log("Please note that " + metadata.NAME + " is unable to fetch artwork. This is");
+                    logger.log("something you have to do yourself from inside iTunes before launching this");
+                    logger.log("script.");
+                    logger.ungroup();
+                    logger.log();
+
+                    //Options
+                    logger.log("OPTIONS");
+                    logger.group();
+
+                    logger.log("-h, --help");
+                    logger.group();
+                    logger.log("Display help and exit");
+                    logger.ungroup();
+                    logger.log();
+
+                    logger.log("-q, --quiet");
+                    logger.group();
+                    logger.log("Show less output");
+                    logger.ungroup();
+                    logger.log();
+
+                    logger.log("-Q, --quit");
+                    logger.group();
+                    logger.log("Quit iTunes when finished");
+                    logger.ungroup();
+                    logger.log();
+
+                    logger.log("-v, --verbose");
+                    logger.group();
+                    logger.log("Show more output");
+                    logger.ungroup();
+                    logger.log();
+
+                    logger.log("-V, --version");
+                    logger.group();
+                    logger.log("Display version and exit");
+                    logger.ungroup();
+
+                    logger.ungroup();
+                    logger.log();
+
+                    //Examples
+                    logger.log("EXAMPLES");
+                    logger.group();
+
+                    logger.log(scriptName + " --quit");
+                    logger.group();
+                    logger.log("Embed linked artwork and quit iTunes when finished");
+                    logger.ungroup();
+                    logger.log();
+
+                    logger.log("cscript //Nologo " + scriptName);
+                    logger.group();
+                    logger.log("Launch " + metadata.NAME + " using cscript, preventing it from spawning");
+                    logger.log("a new shell. This is useful if you want the output to be displayed in");
+                    logger.log("the current shell instead of a new one. Otherwise, the script behaves");
+                    logger.log("the same.");
+                    logger.ungroup();
+
+                    logger.ungroup();
+                },
+
+                displayVersion = function displayVersion() {
+
+                    logger.log(metadata.NAME + " v" + metadata.VERSION);
+                },
+
+                createItunesApp = function createItunesApp() {
+
+                    var itunesApp;
+
+                    logger.debug("Launching iTunes");
+
+                    try {
+
+                        itunesApp = WScript.CreateObject("iTunes.Application");
+                    } catch (exception) {
+
+                        throw { message: "iTunes could not be found on this computer" };
+                    }
+
+                    if (!itunesApp.CheckVersion(itunesTypeLibrary.minimumCompatibleVersion.MAJOR, itunesTypeLibrary.minimumCompatibleVersion.MINOR)) {
+
+                        throw {
+
+                            message:
+
+                                "The version of iTunes installed on this computer is incompatible with " + metadata.NAME
+                        };
+                    }
+
+                    return itunesApp;
+                },
+
+                embedLinkedArtwork = function embedLinkedArtwork(itunesApp) {
+
+                    var playlist = itunesApp.LibraryPlaylist,
+                        tracks = playlist.Tracks,
+                        fs = WScript.CreateObject("Scripting.FileSystemObject"),
+                        tempFolder = fs.CreateFolder(
+
+                            fs.BuildPath(
+
+                                fs.GetSpecialFolder(fileSystemObject.specialFolders.TEMP).Path,
+                                fs.GetTempName()
+                            )
+                        ),
+                        areTracksSkipped = false,
+                        extensions = ["", ".jpg", ".png", ".bmp"],
+                        percentageComplete,
+                        numberOfTracks = tracks.Count,
+                        numberOfTracksProcessed = 0,
+                        lastReportedPercentageComplete = 0;
+
+                    logger.information("Analysing playlist " + playlist.Name + ", this may take a while");
+                    logger.debug("Temp folder is " + tempFolder);
+                    logger.information(lastReportedPercentageComplete + "%");
+                    itunesList(tracks).each(function eachTrack(track) {
+
+                        var name = track.Name;
+
+                        logger.debug("Analysing track " + name);
+                        itunesList(track.Artwork).each(function eachArtwork(artwork) {
+
+                            var artworkPath;
+
+                            try {
+
+                                if (artwork.IsDownloadedArtwork) {
+
+                                    artworkPath = fs.BuildPath(tempFolder, "Artwork" + extensions[artwork.Format]);
+                                }
+                            } catch (exception) {
+
+                                logger.error("iTunes is out of sync with reality, skipping track " + name);
+                                areTracksSkipped = true;
+
+                                return false;
+                            }
+
+                            if (artworkPath) {
+
+                                logger.information("Embedding linked artwork in track " + name);
+                                artwork.SaveArtworkToFile(artworkPath);
+                                artwork.SetArtworkFromFile(artworkPath);
+
+                                return false;
+                            }
+
+                            return true;
+                        });
+                        ++numberOfTracksProcessed;
+                        percentageComplete = Math.floor(numberOfTracksProcessed / numberOfTracks * 100);
+
+                        if (percentageComplete - lastReportedPercentageComplete >= PROGRESS_UPDATE_GRANULARITY) {
+
+                            lastReportedPercentageComplete =
+                                percentageComplete - percentageComplete % PROGRESS_UPDATE_GRANULARITY;
+                            logger.information(lastReportedPercentageComplete + "%");
+                        }
+                    });
+                    logger.debug("Deleting temp folder");
+                    tempFolder.Delete();
+
+                    if (areTracksSkipped) {
+
+                        logger.error("Some tracks were skipped, refetch artwork and rerun " + metadata.NAME);
+                    }
+                },
+
+                main = function main(options) {
+
+                    if (options.quiet) {
+
+                        logger.setSeverity(logger.severities.ERROR);
+                    } else if (options.verbose) {
+
+                        logger.setSeverity(logger.severities.DEBUG);
+                    }
+
+                    if (options.help) {
+
+                        displayHelp();
+                    } else if (options.version) {
+
+                        displayVersion();
+                    } else {
+
+                        var itunesApp;
+
+                        try {
+
+                            itunesApp = createItunesApp();
+                        } catch (exception) {
+
+                            logger.error(exception.message);
+
+                            return;
+                        }
+
+                        embedLinkedArtwork(itunesApp);
+
+                        if (options.quit) {
+
+                            logger.debug("Quitting iTunes");
+                            itunesApp.Quit();
+                        }
+                    }
+                },
+
+                initialise = function initialise() {
+
+                    var options = {},
+                        areOptionsValid = true;
+
+                    wshList(WScript.Arguments).each(function eachArgument(argument) {
+
+                        switch (argument) {
+
+                        case "-h":
+                        case "--help":
+
+                            options.help = true;
+
+                            break;
+                        case "-q":
+                        case "--quiet":
+
+                            options.quiet = true;
+
+                            break;
+                        case "-Q":
+                        case "--quit":
+
+                            options.quit = true;
+
+                            break;
+                        case "-v":
+                        case "--verbose":
+
+                            options.verbose = true;
+
+                            break;
+                        case "-V":
+                        case "--version":
+
+                            options.version = true;
+
+                            break;
+                        default:
+
+                            areOptionsValid = false;
+                            logger.error("Invalid option \"" + argument + "\"");
+                            logger.error("Try \"" + WScript.ScriptName + " --help\" for more information");
+
+                            return;
+                        }
+                    });
+
+                    if (areOptionsValid) {
+
+                        main(options);
+                    }
+                };
+
+            initialise();
+        };
+
+    if (!environment.isSupported()) {
+
+        WScript.CreateObject("WScript.Shell").Run(
+
+            "cscript //Nologo {{path}}{{arguments}}"
+                .replace("{{path}}", "\"" + WScript.ScriptFullName + "\"")
+                .replace(
+
+                    "{{arguments}}",
+                    wshList(WScript.Arguments).fold(function foldArguments(argument, accumulator) {
+
+                        return accumulator + " " + argument;
+                    }, "")
+                )
+        );
+
+        return;
+    }
+
+    app();
+}());
+</script>
+</job>
