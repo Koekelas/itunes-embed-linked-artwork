@@ -297,16 +297,17 @@
                     //Description
                     logger.log("DESCRIPTION");
                     logger.group();
-                    logger.log("iTunes 7 introduced the ability to download artwork for CDs you ripped");
-                    logger.log("yourself. Unlike the songs you purchase from the iTunes Store, the artwork");
-                    logger.log("is not embedded into the file but instead linked to, preventing other");
-                    logger.log("programs from displaying the artwork. " + metadata.NAME + " solves this");
-                    logger.log("problem by searching your entire library for songs with linked artwork and");
-                    logger.log("embedding the artwork into the file when it finds one.");
+                    logger.log("iTunes 7 made it possible to download artwork for CDs you've ripped");
+                    logger.log("yourself. Artwork downloaded by iTunes is linked to instead of embedded into");
+                    logger.log("the tracks. This prevents other programs from displaying the artwork.");
                     logger.log();
-                    logger.log("Please note that " + metadata.NAME + " is unable to fetch artwork. This is");
-                    logger.log("something you have to do yourself from inside iTunes before launching this");
-                    logger.log("script.");
+                    logger.log(metadata.NAME + " is an iTunes for Windows plugin which searches your");
+                    logger.log("entire library for tracks with linked artwork. When it finds such a track,");
+                    logger.log("it embeds the linked artwork into the corresponding file.");
+                    logger.log();
+                    logger.log("Note that " + metadata.NAME + " is unable to make iTunes download artwork.");
+                    logger.log("This is something you'll have to do yourself form inside iTunes prior to");
+                    logger.log("launching this script.");
                     logger.ungroup();
                     logger.log();
 
@@ -316,31 +317,31 @@
 
                     logger.log("-h, --help");
                     logger.group();
-                    logger.log("Display help and exit");
+                    logger.log("Display help and exit.");
                     logger.ungroup();
                     logger.log();
 
                     logger.log("-q, --quiet");
                     logger.group();
-                    logger.log("Show less output");
+                    logger.log("Show less output.");
                     logger.ungroup();
                     logger.log();
 
                     logger.log("-Q, --quit");
                     logger.group();
-                    logger.log("Quit iTunes when finished");
+                    logger.log("Quit iTunes when finished.");
                     logger.ungroup();
                     logger.log();
 
                     logger.log("-v, --verbose");
                     logger.group();
-                    logger.log("Show more output");
+                    logger.log("Show more output.");
                     logger.ungroup();
                     logger.log();
 
                     logger.log("-V, --version");
                     logger.group();
-                    logger.log("Display version and exit");
+                    logger.log("Display version and exit.");
                     logger.ungroup();
 
                     logger.ungroup();
@@ -352,7 +353,7 @@
 
                     logger.log(scriptName + " --quit");
                     logger.group();
-                    logger.log("Embed linked artwork and quit iTunes when finished");
+                    logger.log("Embed linked artwork and quit iTunes when finished.");
                     logger.ungroup();
                     logger.log();
 
@@ -471,7 +472,7 @@
 
                     if (areTracksSkipped) {
 
-                        logger.error("Some tracks were skipped, refetch artwork and rerun " + metadata.NAME);
+                        logger.error("Some tracks were skipped, redownload the artwork and rerun " + metadata.NAME);
                     }
                 },
 
